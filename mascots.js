@@ -92,9 +92,10 @@ function bindHero(root, preferCrop) {
   if (!root) return;
   const img = root.querySelector(".hero-scene") || root.querySelector("img.hero-scene");
   if (!img) return;
-  const sources = [];
-  if (preferCrop) sources.push("assets/mascots/axolotl/hero.png");
-  sources.push("assets/brand/splash.png");
+  const sources = [
+    "assets/brand/splash.webp",
+    "assets/brand/splash.png",
+  ];
   let i = 0;
   const fail = () => root.classList.remove("has-art");
   const ok = () => {

@@ -81,6 +81,13 @@ function defaultState() {
     titles: [TITLES[1]],
     activeTitle: TITLES[1],
     weekly: emptyWeekly(weekId()),
+    food: {},
+    ownedToys: [],
+    bestStreak: 1,
+    totalXp: 0,
+    streakLost: false,
+    frozenToday: false,
+    settings: { sound: true, haptics: true, notifications: false, theme: "auto" },
   };
 }
 
@@ -93,6 +100,13 @@ function migrate(s) {
   s.claimedLevels = s.claimedLevels || [1];
   s.titles = s.titles || [TITLES[1]];
   s.activeTitle = s.activeTitle || TITLES[1];
+  s.food = s.food || {};
+  s.ownedToys = s.ownedToys || [];
+  s.bestStreak = Math.max(s.bestStreak || 1, s.streak || 1);
+  s.totalXp = s.totalXp || 0;
+  s.streakLost = !!s.streakLost;
+  s.frozenToday = !!s.frozenToday;
+  s.settings = Object.assign({ sound: true, haptics: true, notifications: false, theme: "auto" }, s.settings || {});
   ensureWeekly(s);
   const cap = xpToNext(s.level);
   if (cap && s.xp >= cap) s.xp = cap - 1;
@@ -111,6 +125,9 @@ function load() {
     }
     const report = applyDayRollover(s, todayKey());
     s._rollover = report;
+    if (report.usedFreeze) s.frozenToday = true;
+    if (report.resetStreak) s.streakLost = true;
+    s.bestStreak = Math.max(s.bestStreak || 1, s.streak || 1);
     return s;
   } catch {
     return defaultState();
@@ -130,6 +147,7 @@ let countdownTimer = null;
 
 function haptic(kind) {
   try {
+    if (state && state.settings && state.settings.haptics === false) return;
     if (!tg || !tg.HapticFeedback) return;
     if (kind === "success") tg.HapticFeedback.notificationOccurred("success");
     else if (kind === "warn") tg.HapticFeedback.notificationOccurred("warning");
@@ -166,7 +184,7 @@ function showScreen(name) {
     el.classList.remove("is-compact");
   }
   const tabs = $("tabbar");
-  const isApp = ["home", "tasks", "shop", "path", "share"].includes(name);
+  const isApp = ["home", "tasks", "shop", "path", "share", "profile"].includes(name);
   tabs.classList.toggle("hidden", !isApp);
   document.querySelectorAll(".tab").forEach((t) => {
     t.classList.toggle("active", t.dataset.tab === name);
@@ -177,6 +195,7 @@ function showScreen(name) {
   if (name === "share") renderShare();
   if (name === "path") renderPath();
   if (name === "roulette") renderRoulette();
+  if (name === "profile") renderProfile();
   if (name === "onboard") {
     syncOnboard();
     bindHero(document.querySelector(".onboard-hero"), true);
@@ -198,12 +217,15 @@ function buildSpinner(root) {
 function loadSplashArt() {
   const img = $("splash-art");
   const fallback = $("splash-fallback");
-  img.onload = () => {
-    img.classList.remove("hidden");
-    if (fallback) fallback.classList.add("hidden");
-  };
-  img.onerror = () => img.classList.add("hidden");
-  img.src = "assets/brand/splash.png";
+  if (!img) return;
+  const ok = () => { if (fallback) fallback.classList.add("hidden"); img.classList.remove("hidden"); };
+  const fail = () => { img.classList.add("hidden"); if (fallback) fallback.classList.remove("hidden"); };
+  img.onload = ok;
+  img.onerror = fail;
+  if (img.complete) {
+    if (img.naturalWidth) ok();
+    else fail();
+  }
 }
 
 /* ---------- onboard ---------- */
@@ -296,21 +318,26 @@ function renderHomeWidgets() {
   }
 
   const pending = unclaimedLevels(state);
+  const need = xpToNext(state.level) || 1;
+  const line = $("home-level-line");
+  if (line) line.style.width = (state.level >= MAX_LEVEL ? 100 : Math.min(100, (state.xp / need) * 100)) + "%";
   if (pending.length) {
     const r = rewardFor(pending[0]);
-    $("reward-title").textContent = "Награда не забрана";
-    $("reward-sub").textContent = `Уровень ${pending[0]} · ${rewardSummary(r)}`;
+    $("reward-title").textContent = `Уровень ${pending[0]}`;
+    $("reward-sub").textContent = "Забери награду · " + rewardSummary(r);
     $("widget-reward").classList.add("claimable");
   } else if (state.level >= MAX_LEVEL) {
-    $("reward-title").textContent = "Путь пройден";
-    $("reward-sub").textContent = "Хранитель Moji · 50 уровень";
+    $("reward-title").textContent = "Уровень 50";
+    $("reward-sub").textContent = "Путь пройден";
     $("widget-reward").classList.remove("claimable");
   } else {
     const next = rewardFor(state.level + 1);
-    $("reward-title").textContent = "Следующая награда";
-    $("reward-sub").textContent = `Уровень ${state.level + 1} · ${rewardSummary(next)}`;
+    $("reward-title").textContent = `Уровень ${state.level}`;
+    $("reward-sub").textContent = `Далее: ${rewardSummary(next)}`;
     $("widget-reward").classList.remove("claimable");
   }
+  const rk = $("reward-kicker");
+  if (rk) rk.textContent = state.activeTitle || "Путь";
 
   const fp = $("home-freeze");
   if (state.freezes > 0) {
@@ -327,10 +354,10 @@ function renderHome() {
   $("home-coins").textContent = state.coins;
   $("home-level").textContent = state.level >= MAX_LEVEL ? "Макс." : `Ур. ${state.level}`;
   $("home-xp-bar").style.width = (state.level >= MAX_LEVEL ? 100 : Math.min(100, (state.xp / need) * 100)) + "%";
-  $("streak-days").textContent = daysWord(state.streak);
-  $("streak-sub").textContent = state.name || "твой моджи";
+  applyStreakMood();
+  $("streak-days").textContent = daysWord(state.streakLost && state.streak <= 1 ? 0 : state.streak);
   renderWeek($("week-row"), state.week);
-  $("banner-risk").classList.toggle("hidden", state.hunger >= 28);
+  $("banner-risk").classList.add("hidden");
   const hero = $("home-hero");
   hero.classList.toggle("bg-night", state.bg === "night");
   hero.classList.toggle("bg-meadow", state.bg === "meadow");
@@ -354,7 +381,10 @@ function addWeeklyXp(n) {
 
 function addXp(n, coins, opts) {
   if (coins) state.coins += coins;
-  if (n) addWeeklyXp(n);
+  if (n) {
+    addWeeklyXp(n);
+    state.totalXp = (state.totalXp || 0) + n;
+  }
   const gained = [];
   if (state.level >= MAX_LEVEL) {
     save();
@@ -380,6 +410,7 @@ function celebrateLevel(gained) {
   const reward = rewardFor(first);
   const more = gained.length > 1 ? `<p>И ещё ${gained.length - 1} ${gained.length === 2 ? "уровень" : "уровня"}.</p>` : "";
   const lines = rewardLines(reward).map((l) => `<div class="reward-chip">${l}</div>`).join("");
+  burst();
   openModal({
     emotion: "reward",
     title: `Уровень ${first}!`,
@@ -413,6 +444,8 @@ function feed() {
     w.fedOn[todayKey()] = true;
     w.feedDays += 1;
   }
+  state.streakLost = false;
+  state.bestStreak = Math.max(state.bestStreak || 1, state.streak || 1);
   addXp(8, 0);
   markTask("feed");
   haptic("medium");
@@ -704,94 +737,12 @@ function spinWheel() {
 }
 
 /* ---------- shop ---------- */
+/* Catalog + market implemented below (v5). These helpers stay for compatibility. */
 function owns(kind, id) {
-  return kind === "hat" ? state.ownedHats.includes(id) : state.ownedBgs.includes(id);
-}
-function shopCard(item, kind) {
-  const equipped = kind === "hat" ? state.hat === item.id : state.bg === item.id;
-  const have = owns(kind, item.id);
-  let meta;
-  if (equipped) meta = `<span class="pill">На моджи</span>`;
-  else if (have) meta = `<span class="pill">Надеть</span>`;
-  else if (item.price === 0) meta = `<span class="pill">Бесплатно</span>`;
-  else if (item.currency === "stars") meta = `<span class="shop-meta">★ ${item.price}</span>`;
-  else meta = `<span class="shop-meta"><span class="coin-ic"></span>${item.price}</span>`;
-  let preview;
-  if (kind === "hat") {
-    const path = ITEM_ICONS[item.id] || ITEM_ICONS.none;
-    preview = `<div class="item-icon" style="background:${item.tint}">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${path}</svg>
-    </div>`;
-  } else {
-    preview = `<div class="bg-thumb ${item.id}"></div>`;
-  }
-  return `<div class="shop-card ${equipped ? "equipped" : ""}" data-kind="${kind}" data-id="${item.id}">
-    ${preview}<h3>${item.name}</h3>${meta}
-  </div>`;
-}
-function renderShop() {
-  $("shop-coins").textContent = state.coins;
-  $("shop-hats").innerHTML = HATS.map((h) => shopCard(h, "hat")).join("");
-  $("shop-bgs").innerHTML = BACKGROUNDS.map((b) => shopCard(b, "bg")).join("");
-}
-
-function buyOrEquip(kind, id) {
-  const list = kind === "hat" ? HATS : BACKGROUNDS;
-  const item = list.find((x) => x.id === id);
-  if (!item) return;
-  if (owns(kind, id)) {
-    if (kind === "hat") state.hat = id;
-    else state.bg = id;
-    markTask("dress");
-    haptic("light");
-    save();
-    renderShop();
-    return;
-  }
-  if (item.currency === "stars") {
-    openStarsModal(item, kind);
-    return;
-  }
-  if (state.coins < item.price) {
-    toast("Не хватает монет");
-    haptic("warn");
-    return;
-  }
-  state.coins -= item.price;
-  if (kind === "hat") {
-    state.ownedHats.push(id);
-    state.hat = id;
-  } else {
-    state.ownedBgs.push(id);
-    state.bg = id;
-  }
-  markTask("dress");
-  haptic("success");
-  toast("Готово");
-  save();
-  renderShop();
-}
-
-function openStarsModal(item, kind) {
-  openModal({
-    emotion: "idea",
-    title: "Telegram Stars",
-    text: `Покупка «${item.name}» за ${item.price} ★ пока смоделирована. В релизе откроется счёт Telegram.`,
-    ok: "Понятно, примерять",
-    onOk: () => {
-      if (kind === "hat") {
-        if (!state.ownedHats.includes(item.id)) state.ownedHats.push(item.id);
-        state.hat = item.id;
-      } else {
-        if (!state.ownedBgs.includes(item.id)) state.ownedBgs.push(item.id);
-        state.bg = item.id;
-      }
-      markTask("dress");
-      save();
-      renderShop();
-      toast("Надето (демо)");
-    },
-  });
+  if (kind === "hat") return state.ownedHats.includes(id);
+  if (kind === "bg" || kind === "bgs") return state.ownedBgs.includes(id);
+  if (kind === "toy") return (state.ownedToys || []).includes(id);
+  return false;
 }
 
 /* ---------- share ---------- */
@@ -921,19 +872,33 @@ function resetDemo() {
   toast("Демо сброшено");
 }
 
-function initTelegram() {
+function lockTelegramViewport() {
   if (!tg) return;
+  try { if (typeof tg.ready === "function") tg.ready(); } catch {}
+  try { if (typeof tg.expand === "function") tg.expand(); } catch {}
+  try { if (typeof tg.disableVerticalSwipes === "function") tg.disableVerticalSwipes(); } catch {}
   try {
-    tg.ready();
-    tg.expand();
-    if (tg.disableVerticalSwipes) tg.disableVerticalSwipes();
-    const p = tg.themeParams || {};
-    if (p.bg_color) document.documentElement.style.setProperty("--bg", p.bg_color);
-    if (p.text_color) document.documentElement.style.setProperty("--label", p.text_color);
-    if (p.hint_color) document.documentElement.style.setProperty("--secondary-label", p.hint_color);
-    if (tg.setHeaderColor) tg.setHeaderColor(p.secondary_bg_color || p.bg_color || "#F2F2F7");
-    if (tg.setBackgroundColor) tg.setBackgroundColor(p.bg_color || "#F2F2F7");
+    if (typeof tg.lockOrientation === "function") tg.lockOrientation("portrait");
   } catch {}
+}
+
+function initTelegram() {
+  try {
+    lockTelegramViewport();
+    if (tg && tg.onEvent) {
+      tg.onEvent("themeChanged", () => applyTheme());
+      tg.onEvent("viewportChanged", () => {
+        try { if (tg && !tg.isExpanded && typeof tg.expand === "function") tg.expand(); } catch {}
+        applyChrome();
+      });
+      tg.onEvent("safeAreaChanged", () => applyChrome());
+      tg.onEvent("contentSafeAreaChanged", () => applyChrome());
+    }
+  } catch {}
+  applyChrome();
+  applyTheme();
+  window.addEventListener("resize", applyChrome);
+  if (window.visualViewport) visualViewport.addEventListener("resize", applyChrome);
 }
 
 function bindCompactTitles() {
@@ -972,7 +937,6 @@ function bind() {
   $("btn-feed").onclick = feed;
   $("btn-download-card").onclick = downloadCard;
   $("btn-copy-share").onclick = copyShare;
-  $("btn-reset-path").onclick = resetDemo;
   $("streak-card").onclick = () => { shareKind = "streak"; showScreen("share"); };
   $("home-level-chip").onclick = () => showScreen("path");
   $("widget-tasks").onclick = () => showScreen("tasks");
@@ -1008,24 +972,11 @@ function bind() {
     if (btn) claimLevel(Number(btn.dataset.claim));
   });
 
-  const seg = $("shop-segment");
-  if (seg) {
-    seg.addEventListener("click", (e) => {
-      const btn = e.target.closest("[data-seg]");
-      if (!btn) return;
-      seg.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b === btn));
-      $("shop-hats").classList.toggle("hidden", btn.dataset.seg !== "hats");
-      $("shop-bgs").classList.toggle("hidden", btn.dataset.seg !== "bgs");
-    });
-  }
-  $("shop-hats").addEventListener("click", (e) => {
-    const card = e.target.closest(".shop-card");
-    if (card) buyOrEquip("hat", card.dataset.id);
-  });
-  $("shop-bgs").addEventListener("click", (e) => {
-    const card = e.target.closest(".shop-card");
-    if (card) buyOrEquip("bg", card.dataset.id);
-  });
+  bindShop();
+  const ev = $("widget-event");
+  if (ev) ev.onclick = () => showScreen("shop");
+  const ws = $("widget-shop");
+  if (ws) ws.onclick = () => showScreen("shop");
   $("share-segment").addEventListener("click", (e) => {
     const btn = e.target.closest("[data-share]");
     if (!btn) return;
@@ -1037,6 +988,27 @@ function bind() {
     t.onclick = () => { haptic("light"); showScreen(t.dataset.tab); };
   });
   bindCompactTitles();
+}
+
+function fadeFromSplash(next) {
+  const splash = $("screen-splash");
+  if (!splash || splash.classList.contains("hidden")) {
+    showScreen(next);
+    return;
+  }
+  if (next === "home") renderHome();
+  else if (next === "onboard") {
+    syncOnboard();
+    bindHero(document.querySelector(".onboard-hero"), true);
+  }
+  const dest = document.querySelector(`[data-screen="${next}"]`);
+  if (dest) dest.classList.remove("hidden");
+  splash.classList.add("is-leaving");
+  setTimeout(() => {
+    splash.classList.add("hidden");
+    splash.classList.remove("is-leaving");
+    showScreen(next);
+  }, 450);
 }
 
 function boot() {
@@ -1052,11 +1024,506 @@ function boot() {
     toast("Серия началась заново");
   }
   save();
-  if (state.onboarded && state.name) {
-    showScreen("home");
+  const next = (state.onboarded && state.name) ? "home" : "onboard";
+  showScreen("splash");
+  window._splashTimer = setTimeout(() => fadeFromSplash(next), 1800);
+}
+
+
+
+/* ========== v5: theme, chrome, mood, market, profile, motion ========== */
+function applyChrome() {
+  const root = document.documentElement;
+  let top = 0, bot = 0, h = window.innerHeight;
+  try {
+    if (tg) {
+      const sa = tg.safeAreaInset || {};
+      const csa = tg.contentSafeAreaInset || {};
+      top = (Number(sa.top) || 0) + (Number(csa.top) || 0);
+      bot = (Number(sa.bottom) || 0) + (Number(csa.bottom) || 0);
+      if (tg.viewportStableHeight) h = tg.viewportStableHeight;
+    }
+  } catch {}
+  if (!tg || !tg.viewportStableHeight) {
+    h = (window.visualViewport && visualViewport.height) || window.innerHeight;
+  }
+  root.style.setProperty("--tg-safe-t", top + "px");
+  root.style.setProperty("--tg-safe-b", bot + "px");
+  root.style.setProperty("--app-h", h + "px");
+}
+function systemTheme() {
+  if (tg && tg.colorScheme) return tg.colorScheme === "dark" ? "dark" : "light";
+  return window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+function resolvedTheme() {
+  const pref = (state.settings && state.settings.theme) || "auto";
+  return pref === "auto" ? systemTheme() : pref;
+}
+function applyTheme() {
+  const theme = resolvedTheme();
+  document.documentElement.dataset.theme = theme;
+  document.documentElement.style.colorScheme = theme;
+  const color = theme === "dark" ? "#0B0B10" : "#F3F3F8";
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute("content", color);
+  try {
+    if (tg && tg.setBackgroundColor) tg.setBackgroundColor(color);
+    if (tg && tg.setHeaderColor) tg.setHeaderColor(color);
+  } catch {}
+}
+
+function burst() {
+  const el = $("burst");
+  if (!el) return;
+  el.innerHTML = "";
+  el.classList.remove("hidden");
+  const colors = ["#FF5A8A", "#0A84FF", "#FFD60A", "#24C46A", "#C58BFF"];
+  for (let i = 0; i < 14; i++) {
+    const d = document.createElement("i");
+    const ang = (i / 14) * Math.PI * 2 + (Math.random() * 0.2);
+    const dist = 70 + Math.random() * 90;
+    d.style.setProperty("--x", (Math.cos(ang) * dist) + "px");
+    d.style.setProperty("--y", (Math.sin(ang) * dist - 20) + "px");
+    d.style.background = colors[i % colors.length];
+    el.appendChild(d);
+  }
+  setTimeout(() => el.classList.add("hidden"), 800);
+}
+
+function streakMood() {
+  if (state.frozenToday) return "frozen";
+  if (state.streakLost) return "zero";
+  if (state.hunger < 28) return "risk";
+  if ((state.streak || 0) >= 3) return "fire";
+  return "calm";
+}
+function applyStreakMood() {
+  const mood = streakMood();
+  const card = $("streak-card");
+  if (!card) return;
+  card.classList.remove("mood-calm", "mood-fire", "mood-risk", "mood-frozen", "mood-zero");
+  card.classList.add("mood-" + mood);
+  const copy = {
+    fire: { k: "В огне", s: "Так держать, не пропускай день" },
+    risk: { k: "Под угрозой", s: "Покорми моджи до конца дня" },
+    frozen: { k: "Заморозка", s: "Серия спасена заморозкой" },
+    zero: { k: "Начни серию", s: "Вчерашний прогресс сброшен" },
+    calm: { k: "Серия", s: state.name || "твой моджи" },
+  }[mood];
+  $("streak-kicker").textContent = copy.k;
+  $("streak-sub").textContent = copy.s;
+  const illu = $("streak-illu");
+  if (illu) {
+    const svgs = {
+      fire: '<svg viewBox="0 0 64 64" fill="currentColor"><path d="M32 6c4 10-4 14-2 22 8-4 16 2 16 14 0 12-10 20-16 20s-16-8-16-20c0-16 14-24 18-36z" opacity=".9"/></svg>',
+      risk: '<svg viewBox="0 0 64 64" fill="currentColor"><path d="M32 8 56 52H8L32 8z"/><rect x="29" y="26" width="6" height="14" rx="2" fill="#fff"/><rect x="29" y="42" width="6" height="6" rx="2" fill="#fff"/></svg>',
+      frozen: '<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="4"><path d="M32 8v48M12 20l40 24M12 44l40-24"/></svg>',
+      zero: '<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="4"><circle cx="32" cy="32" r="16"/><path d="M20 44 44 20"/></svg>',
+      calm: '<svg viewBox="0 0 64 64" fill="currentColor"><circle cx="32" cy="32" r="10" opacity=".85"/></svg>',
+    };
+    illu.innerHTML = svgs[mood] || "";
+  }
+}
+
+/* ----- market catalog ----- */
+const CATALOG = [
+  { id: "treat", kind: "food", name: "Вкусняшка", price: 10, rarity: "обычный", sku: "M-201", hunger: 35, mood: 0, tint: "#FF6B9A", pat: "stripes", icon: "food" },
+  { id: "cake", kind: "food", name: "Пирог", price: 25, rarity: "редкий", sku: "M-202", hunger: 50, mood: 15, tint: "#E8A0C0", pat: "dots", icon: "cake", isNew: true },
+  { id: "tea", kind: "food", name: "Тёплый чай", price: 15, rarity: "обычный", sku: "M-203", hunger: 0, mood: 22, tint: "#C45C26", pat: "waves", icon: "tea" },
+  { id: "berry", kind: "food", name: "Снежная ягода", price: 20, rarity: "редкий", sku: "M-204", hunger: 25, mood: 12, tint: "#5B8CFF", pat: "dots", icon: "berry" },
+  { id: "bow", kind: "hat", name: "Бантик", price: 40, rarity: "обычный", sku: "M-101", tint: "#FF6B9A", pat: "stripes", icon: "bow" },
+  { id: "beanie", kind: "hat", name: "Шапка", price: 60, rarity: "обычный", sku: "M-102", tint: "#0A84FF", pat: "grid", icon: "beanie" },
+  { id: "glasses", kind: "hat", name: "Очки", price: 80, rarity: "редкий", sku: "M-103", tint: "#1C1C1E", pat: "waves", icon: "glasses" },
+  { id: "scarf", kind: "hat", name: "Шарф", price: 70, rarity: "редкий", sku: "M-104", tint: "#FF3B30", pat: "stripes", icon: "scarf" },
+  { id: "crown", kind: "hat", name: "Корона", price: 1, currency: "stars", rarity: "эпик", sku: "M-105", tint: "#C9972A", pat: "stars", icon: "crown" },
+  { id: "room", kind: "bg", name: "Комната", price: 0, rarity: "обычный", sku: "M-301", tint: "#2A2A32", pat: "grid", icon: "bg" },
+  { id: "meadow", kind: "bg", name: "Поляна", price: 50, rarity: "обычный", sku: "M-302", tint: "#1B2A1E", pat: "grid", icon: "bg" },
+  { id: "night", kind: "bg", name: "Ночь", price: 1, currency: "stars", rarity: "эпик", sku: "M-303", tint: "#0E1424", pat: "waves", icon: "bg", isNew: true },
+  { id: "ball", kind: "toy", name: "Мячик", price: 30, rarity: "обычный", sku: "M-401", mood: 20, tint: "#34C759", pat: "dots", icon: "ball" },
+  { id: "pillow", kind: "toy", name: "Подушка", price: 35, rarity: "обычный", sku: "M-402", mood: 25, tint: "#AF8CFF", pat: "stripes", icon: "pillow" },
+  { id: "lantern", kind: "toy", name: "Фонарик", price: 45, rarity: "редкий", sku: "M-403", mood: 18, tint: "#F0C14B", pat: "stars", icon: "lantern", isNew: true },
+  { id: "sleigh", kind: "toy", name: "Саночки", price: 60, rarity: "редкий", sku: "M-404", mood: 30, tint: "#5AC8FA", pat: "waves", icon: "sleigh" },
+];
+const CAT_ICONS = {
+  food: '<path d="M8 36c0 12 10 20 24 20s24-8 24-20H8z" fill="currentColor"/><path d="M16 36V18a12 12 0 0 1 24 0v18" stroke="currentColor" stroke-width="4" fill="none"/>',
+  cake: '<path d="M10 30h44v18H10z" fill="currentColor"/><path d="M16 30c4-8 8-8 12 0s8 8 12 0 8-8 12 0" stroke="currentColor" stroke-width="4" fill="none"/>',
+  tea: '<path d="M14 24h28v16a12 12 0 0 1-24 0V24z" fill="currentColor"/><path d="M42 28h8a6 6 0 0 1 0 12h-4" stroke="currentColor" stroke-width="4" fill="none"/>',
+  berry: '<circle cx="26" cy="34" r="10" fill="currentColor"/><circle cx="38" cy="34" r="10" fill="currentColor" opacity=".85"/><path d="M32 16c0 8 4 10 8 12" stroke="currentColor" stroke-width="4" fill="none"/>',
+  bow: ITEM_ICONS.bow, beanie: ITEM_ICONS.beanie, glasses: ITEM_ICONS.glasses, scarf: ITEM_ICONS.scarf, crown: ITEM_ICONS.crown,
+  bg: '<rect x="10" y="16" width="44" height="32" rx="6" fill="currentColor" opacity=".85"/>',
+  ball: '<circle cx="32" cy="32" r="16" fill="none" stroke="currentColor" stroke-width="4"/><path d="M16 32h32M32 16v32" stroke="currentColor" stroke-width="3"/>',
+  pillow: '<rect x="10" y="22" width="44" height="22" rx="10" fill="currentColor"/>',
+  lantern: '<path d="M24 18h16v6H24zM22 24h20l-4 22H26L22 24z" fill="currentColor"/><path d="M32 10v8" stroke="currentColor" stroke-width="4"/>',
+  sleigh: '<path d="M12 36h32l8-10H28L12 36z" fill="currentColor"/><path d="M12 44h40" stroke="currentColor" stroke-width="4" fill="none"/>',
+};
+
+let shopCat = "all";
+let shopFilter = "all";
+let shopQuery = "";
+let promoTimer = null;
+
+function eventEnd() {
+  const d = new Date();
+  const day = (d.getDay() + 6) % 7;
+  const mon = new Date(d.getFullYear(), d.getMonth(), d.getDate() + (7 - day));
+  mon.setHours(0, 0, 0, 0);
+  return mon;
+}
+function formatEventCd() {
+  const ms = eventEnd() - Date.now();
+  if (ms <= 0) return "скоро";
+  const d = Math.floor(ms / 86400000);
+  const h = Math.floor((ms % 86400000) / 3600000);
+  const m = Math.floor((ms % 3600000) / 60000);
+  if (d > 0) return `${d}д ${h}ч`;
+  return `${h}ч ${String(m).padStart(2, "0")}м`;
+}
+
+function itemOwned(item) {
+  if (item.kind === "food") return (state.food[item.id] || 0) > 0;
+  if (item.kind === "hat") return state.ownedHats.includes(item.id);
+  if (item.kind === "bg") return state.ownedBgs.includes(item.id);
+  if (item.kind === "toy") return (state.ownedToys || []).includes(item.id);
+  return false;
+}
+function itemCount(item) {
+  if (item.kind === "food") return state.food[item.id] || 0;
+  return itemOwned(item) ? 1 : 0;
+}
+function itemEquipped(item) {
+  if (item.kind === "hat") return state.hat === item.id;
+  if (item.kind === "bg") return state.bg === item.id;
+  return false;
+}
+
+function filteredCatalog() {
+  const q = (shopQuery || "").trim().toLowerCase();
+  return CATALOG.filter((it) => {
+    if (shopCat !== "all" && it.kind !== shopCat) return false;
+    if (shopFilter === "mine" && !itemOwned(it)) return false;
+    if (shopFilter === "new" && !it.isNew) return false;
+    if (shopFilter === "cheap" && (it.currency === "stars" || it.price > 40)) return false;
+    if (q && !(`${it.name} ${it.sku} ${it.rarity}`).toLowerCase().includes(q)) return false;
+    return true;
+  });
+}
+
+function renderShop() {
+  renderMarket();
+}
+
+function renderMarket() {
+  if ($("shop-coins")) $("shop-coins").textContent = state.coins;
+  const cd = $("shop-promo-cd");
+  if (cd) {
+    cd.textContent = formatEventCd();
+    clearInterval(promoTimer);
+    promoTimer = setInterval(() => { if ($("shop-promo-cd")) $("shop-promo-cd").textContent = formatEventCd(); }, 30000);
+  }
+  const grid = $("market-grid");
+  if (!grid) return;
+  const items = filteredCatalog();
+  if (!items.length) {
+    grid.innerHTML = `<div class="market-empty">Ничего не нашлось</div>`;
+    return;
+  }
+  grid.innerHTML = items.map((it) => {
+    const owned = itemOwned(it);
+    const count = itemCount(it);
+    const eq = itemEquipped(it);
+    const icon = CAT_ICONS[it.icon] || CAT_ICONS.food;
+    const vb = it.icon && ITEM_ICONS[it.icon] ? "0 0 24 24" : "0 0 64 64";
+    let priceLbl, priceCls = "m-price";
+    if (it.currency === "stars" && !owned) {
+      priceLbl = `★ ${it.price}`;
+      priceCls += " stars";
+    } else if (it.kind === "food") {
+      priceLbl = `<span class="coin-ic"></span>${it.price}`;
+    } else if (owned) {
+      priceLbl = eq ? "На моджи" : "В инвентаре";
+      priceCls += " owned";
+    } else if (it.price === 0) {
+      priceLbl = "Бесплатно";
+    } else {
+      priceLbl = `<span class="coin-ic"></span>${it.price}`;
+    }
+    let sec = "";
+    if (it.kind === "food" && count > 0) sec = `<button class="m-sec" data-use="${it.id}">Скормить</button>`;
+    else if (it.kind === "toy" && owned) sec = `<button class="m-sec" data-play="${it.id}">Играть</button>`;
+    else if ((it.kind === "hat" || it.kind === "bg") && owned && !eq) sec = `<button class="m-sec" data-equip="${it.kind}:${it.id}">Надеть</button>`;
+    const countBadge = it.kind === "food" && count > 0 ? `<span class="m-owned-count">×${count}</span>` : "";
+    return `<article class="m-card" data-item="${it.id}">
+      <div class="m-art pat-${it.pat}" style="--tint:${it.tint}">
+        ${countBadge}
+        <svg viewBox="${vb}" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${icon}</svg>
+      </div>
+      <div class="m-name">${it.name}</div>
+      <div class="m-meta">${it.rarity} · #${it.sku}</div>
+      <div class="m-actions">
+        <button class="${priceCls}" data-buy="${it.id}">${priceLbl}</button>
+        ${sec}
+      </div>
+    </article>`;
+  }).join("");
+}
+
+function buyMarket(id) {
+  const it = CATALOG.find((x) => x.id === id);
+  if (!it) return;
+  if (it.kind !== "food" && itemOwned(it)) {
+    if (it.kind === "hat" || it.kind === "bg") equipItem(it);
+    return;
+  }
+  if (it.currency === "stars") {
+    openStarsMarket(it);
+    return;
+  }
+  if (state.coins < it.price) {
+    toast("Не хватает монет");
+    haptic("warn");
+    return;
+  }
+  state.coins -= it.price;
+  if (it.kind === "food") {
+    state.food[it.id] = (state.food[it.id] || 0) + 1;
+    toast(`${it.name} в инвентаре`);
+  } else if (it.kind === "hat") {
+    if (!state.ownedHats.includes(it.id)) state.ownedHats.push(it.id);
+    state.hat = it.id;
+    markTask("dress");
+    toast("Надето");
+  } else if (it.kind === "bg") {
+    if (!state.ownedBgs.includes(it.id)) state.ownedBgs.push(it.id);
+    state.bg = it.id;
+    markTask("dress");
+    toast("Фон выбран");
+  } else if (it.kind === "toy") {
+    if (!state.ownedToys.includes(it.id)) state.ownedToys.push(it.id);
+    toast("Игрушка куплена");
+  }
+  haptic("success");
+  save();
+  renderMarket();
+  if (document.querySelector('[data-screen="home"]:not(.hidden)')) renderHome();
+}
+
+function openStarsMarket(it) {
+  openModal({
+    emotion: "idea",
+    title: "Telegram Stars",
+    text: `Покупка «${it.name}» за ${it.price} ★ пока смоделирована. В релизе откроется счёт Telegram.`,
+    ok: "Понятно, забрать",
+    onOk: () => {
+      if (it.kind === "hat" && !state.ownedHats.includes(it.id)) state.ownedHats.push(it.id);
+      if (it.kind === "hat") state.hat = it.id;
+      if (it.kind === "bg" && !state.ownedBgs.includes(it.id)) state.ownedBgs.push(it.id);
+      if (it.kind === "bg") state.bg = it.id;
+      markTask("dress");
+      save();
+      renderMarket();
+      toast("Добавлено (демо)");
+    },
+  });
+}
+
+function equipItem(it) {
+  if (it.kind === "hat") state.hat = it.id;
+  if (it.kind === "bg") state.bg = it.id;
+  markTask("dress");
+  haptic("light");
+  save();
+  renderMarket();
+  toast("Надето");
+}
+
+function useFood(id) {
+  const it = CATALOG.find((x) => x.id === id);
+  if (!it || (state.food[id] || 0) < 1) return;
+  state.food[id] -= 1;
+  state.hunger = Math.min(100, state.hunger + (it.hunger || 0));
+  state.mood = Math.min(100, state.mood + (it.mood || 0));
+  state.week[weekdayIndex()] = true;
+  state.streakLost = false;
+  const w = ensureWeekly(state);
+  if (!w.fedOn[todayKey()]) { w.fedOn[todayKey()] = true; w.feedDays += 1; }
+  markTask("feed");
+  haptic("success");
+  save();
+  renderMarket();
+  toast(`Скормили «${it.name}»`);
+}
+
+function playToy(id) {
+  const it = CATALOG.find((x) => x.id === id);
+  if (!it || !itemOwned(it)) return;
+  state.mood = Math.min(100, state.mood + (it.mood || 15));
+  haptic("success");
+  save();
+  renderMarket();
+  toast(`${it.name}: настроение +${it.mood || 15}`);
+}
+
+function bindShop() {
+  const cats = $("shop-cats");
+  if (cats) cats.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-cat]");
+    if (!btn) return;
+    shopCat = btn.dataset.cat;
+    cats.querySelectorAll(".chip").forEach((b) => b.classList.toggle("on", b === btn));
+    renderMarket();
+  });
+  const filters = $("shop-filters");
+  if (filters) filters.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-filter]");
+    if (!btn) return;
+    shopFilter = btn.dataset.filter;
+    filters.querySelectorAll(".chip").forEach((b) => b.classList.toggle("on", b === btn));
+    renderMarket();
+  });
+  const search = $("shop-search");
+  if (search) search.addEventListener("input", () => {
+    shopQuery = search.value;
+    renderMarket();
+  });
+  const grid = $("market-grid");
+  if (grid) grid.addEventListener("click", (e) => {
+    const buy = e.target.closest("[data-buy]");
+    if (buy) { buyMarket(buy.dataset.buy); return; }
+    const use = e.target.closest("[data-use]");
+    if (use) { useFood(use.dataset.use); return; }
+    const play = e.target.closest("[data-play]");
+    if (play) { playToy(play.dataset.play); return; }
+    const eq = e.target.closest("[data-equip]");
+    if (eq) {
+      const [kind, id] = eq.dataset.equip.split(":");
+      const it = CATALOG.find((x) => x.id === id && x.kind === kind);
+      if (it) equipItem(it);
+    }
+  });
+  const promo = $("shop-promo");
+  if (promo) promo.onclick = () => {
+    shopFilter = "new";
+    document.querySelectorAll("#shop-filters .chip").forEach((b) => b.classList.toggle("on", b.dataset.filter === "new"));
+    renderMarket();
+    haptic("light");
+  };
+}
+
+/* ----- profile ----- */
+function tgUser() {
+  try { return (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) || null; }
+  catch { return null; }
+}
+function itemTotal() {
+  const hats = (state.ownedHats || []).filter((id) => id !== "none").length;
+  const bgs = (state.ownedBgs || []).length;
+  const toys = (state.ownedToys || []).length;
+  const food = Object.values(state.food || {}).reduce((a, b) => a + b, 0);
+  return hats + bgs + toys + food;
+}
+function renderProfile() {
+  const u = tgUser();
+  const avatar = $("profile-avatar");
+  const name = (u && (u.first_name || u.username)) || "Игрок";
+  const handle = u && u.username ? "@" + u.username : "@moji_app";
+  $("profile-user").textContent = name;
+  $("profile-handle").textContent = handle;
+  $("profile-moji").textContent = `${state.name || "Моджи"} · ур. ${state.level}` + (state.activeTitle ? ` · ${state.activeTitle}` : "");
+  if (u && u.photo_url) {
+    avatar.style.backgroundImage = `url(${u.photo_url})`;
+    avatar.textContent = "";
   } else {
-    showScreen("splash");
-    window._splashTimer = setTimeout(() => showScreen("onboard"), 1600);
+    avatar.style.backgroundImage = "";
+    avatar.textContent = (name[0] || "М").toUpperCase();
+  }
+  $("stats-grid").innerHTML = [
+    [state.streak, "Серия"],
+    [state.bestStreak || state.streak, "Рекорд"],
+    [state.totalXp || 0, "Всего XP"],
+    [state.coins, "Монеты"],
+    [itemTotal(), "Вещи"],
+    [state.freezes || 0, "Заморозки"],
+  ].map(([n, l]) => `<div class="stat"><b>${n}</b><span>${l}</span></div>`).join("");
+
+  const badges = [
+    { id: "new", title: "Новичок", on: true, color: "#FF6B9A" },
+    { id: "s7", title: "7 дней", on: (state.bestStreak || 0) >= 7, color: "#FF7A18" },
+    { id: "lv5", title: "Уровень 5", on: state.level >= 5, color: "#0A84FF" },
+    { id: "spin", title: "Спин", on: !!state.lastSpin, color: "#7A3CFF" },
+    { id: "style", title: "Стиль", on: (state.ownedHats || []).length > 1, color: "#C9972A" },
+    { id: "keeper", title: "Хранитель", on: (state.titles || []).includes(TITLES[50]), color: "#AF52DE" },
+  ];
+  $("badge-row").innerHTML = badges.map((b) => `
+    <div class="badge ${b.on ? "" : "off"}">
+      <div class="badge-icon" style="background:${b.color}">${b.on ? "✓" : ""}</div>
+      <p>${b.title}</p>
+    </div>`).join("");
+
+  const s = state.settings;
+  const rows = [
+    { id: "haptics", title: "Вибрация", sub: "Тактильный отклик", color: "#FF3B30", type: "switch", on: s.haptics, icon: "h" },
+    { id: "sound", title: "Звук", sub: "Тихие эффекты", color: "#0A84FF", type: "switch", on: s.sound, icon: "s" },
+    { id: "notifications", title: "Уведомления", sub: "Напоминание кормить моджи", color: "#FF7A18", type: "switch", on: s.notifications, icon: "n" },
+    { id: "theme", title: "Тема", sub: themeLabel(s.theme), color: "#1C1C1E", type: "nav", icon: "t" },
+    { id: "lang", title: "Язык", sub: "Русский", color: "#34C759", type: "nav", icon: "l" },
+    { id: "reset", title: "Сбросить прогресс", sub: "Начать демо заново", color: "#FF3B30", type: "nav", icon: "r" },
+    { id: "about", title: "О приложении", sub: "Moji 5 · @moji_app", color: "#AF52DE", type: "nav", icon: "a" },
+  ];
+  $("settings-list").innerHTML = rows.map((r) => `
+    <button type="button" class="setting" data-set="${r.id}">
+      <div class="set-glyph" style="background:${r.color}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="7"/></svg>
+      </div>
+      <div class="set-text"><strong>${r.title}</strong><span>${r.sub}</span></div>
+      ${r.type === "switch" ? `<span class="switch ${r.on ? "on" : ""}" data-sw="${r.id}"><i></i></span>` : `<span class="set-chevron">›</span>`}
+    </button>`).join("");
+  $("settings-list").onclick = onSetting;
+}
+function themeLabel(v) {
+  return { auto: "Как в Telegram", light: "Светлая", dark: "Тёмная" }[v] || "Как в Telegram";
+}
+function onSetting(e) {
+  const row = e.target.closest("[data-set]");
+  if (!row) return;
+  const id = row.dataset.set;
+  if (id === "haptics" || id === "sound" || id === "notifications") {
+    state.settings[id] = !state.settings[id];
+    save();
+    haptic("light");
+    renderProfile();
+    return;
+  }
+  if (id === "theme") {
+    const order = ["auto", "light", "dark"];
+    const i = order.indexOf(state.settings.theme || "auto");
+    state.settings.theme = order[(i + 1) % 3];
+    save();
+    applyTheme();
+    haptic("light");
+    renderProfile();
+    return;
+  }
+  if (id === "lang") {
+    toast("Пока только русский");
+    return;
+  }
+  if (id === "reset") {
+    openModal({
+      emotion: "sad",
+      title: "Сбросить прогресс?",
+      text: "Серия, уровень и инвентарь будут очищены. Это нельзя отменить.",
+      ok: "Сбросить",
+      onOk: resetDemo,
+    });
+    return;
+  }
+  if (id === "about") {
+    openModal({
+      emotion: "idle",
+      title: "Moji",
+      text: "Мини-приложение для Telegram. Версия 5. Чистая забота о моджи, без крипты. @moji_app",
+      ok: "Закрыть",
+    });
   }
 }
 

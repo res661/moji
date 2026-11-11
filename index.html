@@ -1,29 +1,27 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="ru" data-theme="light">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-  <meta name="theme-color" content="#F2F2F7" />
+  <meta name="theme-color" content="#F3F3F8" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <title>Moji</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Nunito:wght@700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css?v=5" />
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
   <div id="app">
 
     <section class="screen splash" id="screen-splash" data-screen="splash">
-      <img class="splash-art hidden" id="splash-art" alt="" />
-      <div class="splash-fallback" id="splash-fallback"></div>
-      <div class="splash-shade"></div>
-      <div class="splash-ui">
-        <div class="splash-mark">Moji</div>
-        <p class="splash-tag">Моджи живут в Телеграме</p>
-      </div>
-      <div class="spinner" id="splash-spinner" aria-label="Загрузка"></div>
+      <picture class="splash-picture">
+        <source srcset="assets/brand/splash.webp" type="image/webp" />
+        <img class="splash-art" id="splash-art" src="assets/brand/splash.png" alt="" />
+      </picture>
+      <div class="splash-fallback hidden" id="splash-fallback"></div>
+      <div class="spinner splash-loader" id="splash-spinner" aria-label="Загрузка"></div>
     </section>
 
     <section class="screen hidden" id="screen-onboard" data-screen="onboard">
@@ -79,9 +77,11 @@
       </div>
     </section>
 
-    <section class="screen hidden has-nav" id="screen-home" data-screen="home">
-      <div class="screen-body" id="home-scroll">
-        <div class="topbar">
+    <section class="screen hidden has-nav screen-home" id="screen-home" data-screen="home">
+      <div class="home-scene" id="home-hero">
+        <img class="hero-scene hidden" id="hero-scene" alt="" />
+        <div class="home-scene-fade"></div>
+        <div class="topbar home-topbar">
           <div class="coin-chip" aria-label="монеты">
             <span class="coin-ic"></span>
             <span id="home-coins">0</span>
@@ -91,7 +91,14 @@
             <div class="xp-bar"><i id="home-xp-bar"></i></div>
           </button>
         </div>
+        <div class="mascot-slot slot-hero" id="home-mascot"></div>
+        <div class="home-caption">
+          <div class="pet-name" id="home-name"></div>
+          <div class="pet-title hidden" id="home-title"></div>
+        </div>
+      </div>
 
+      <div class="screen-body home-widgets" id="home-scroll">
         <div class="banner banner-risk hidden" id="banner-risk">
           <div class="banner-mark" aria-hidden="true">!</div>
           <div class="banner-text">
@@ -100,58 +107,64 @@
           </div>
         </div>
 
-        <div class="wallet" id="streak-wallet">
-          <div class="wallet-layer layer-2" aria-hidden="true"></div>
-          <div class="wallet-layer layer-1" aria-hidden="true"></div>
-          <button type="button" class="streak-card" id="streak-card">
-            <div class="streak-head">
-              <div>
-                <div class="streak-kicker">Серия</div>
-                <div class="streak-days" id="streak-days">1 день</div>
-              </div>
-              <div class="streak-side">
-                <div class="streak-sub" id="streak-sub">твой моджи</div>
-                <div class="freeze-pill hidden" id="home-freeze">0</div>
-              </div>
-            </div>
-            <div class="week-row" id="week-row"></div>
-          </button>
-        </div>
-
-        <div class="widget-grid">
-          <button type="button" class="widget" id="widget-tasks">
-            <div class="widget-kicker">Сегодня</div>
-            <div class="widget-value" id="widget-tasks-val">0 из 5</div>
-            <div class="widget-bar"><i id="widget-tasks-bar"></i></div>
-            <div class="widget-foot">Задания дня</div>
-          </button>
-          <button type="button" class="widget" id="widget-roulette">
-            <div class="widget-kicker">Рулетка</div>
-            <div class="widget-value" id="widget-spin-val">Спин</div>
-            <div class="widget-foot" id="widget-spin-foot">Бесплатно раз в день</div>
-          </button>
-        </div>
-
-        <button type="button" class="row-card" id="widget-reward">
-          <div class="row-glyph reward-glyph" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3"/><path d="M6 20c1.2-3.2 3.2-5 6-5s4.8 1.8 6 5"/></svg>
+        <button type="button" class="tile tile-streak mood-calm tile-enter" id="streak-card" style="--d:0">
+          <div class="tile-copy">
+            <div class="tile-kicker" id="streak-kicker">Серия</div>
+            <div class="tile-value" id="streak-days">1 день</div>
+            <div class="tile-sub" id="streak-sub">твой моджи</div>
           </div>
-          <div class="row-text">
-            <strong id="reward-title">Следующая награда</strong>
-            <span id="reward-sub">Уровень 2</span>
-          </div>
-          <svg class="row-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="m9 6 6 6-6 6"/></svg>
+          <div class="tile-illu" id="streak-illu" aria-hidden="true"></div>
+          <div class="freeze-pill hidden" id="home-freeze"></div>
+          <div class="week-row" id="week-row"></div>
         </button>
 
-        <div class="hero home-hero" id="home-hero">
-          <img class="hero-scene hidden" id="hero-scene" alt="" />
-          <div class="hero-scrim"></div>
-          <div class="mascot-slot slot-hero" id="home-mascot"></div>
-          <div class="pet-name" id="home-name"></div>
-          <div class="pet-title hidden" id="home-title"></div>
+        <div class="tile-grid">
+          <button type="button" class="tile tile-tasks tile-enter" id="widget-tasks" style="--d:1">
+            <div class="tile-kicker">Сегодня</div>
+            <div class="tile-value" id="widget-tasks-val">0 из 5</div>
+            <div class="widget-bar"><i id="widget-tasks-bar"></i></div>
+            <div class="tile-sub">Задания дня</div>
+            <div class="tile-illu" aria-hidden="true">
+              <svg viewBox="0 0 64 64" fill="none"><rect x="10" y="14" width="44" height="10" rx="5" fill="currentColor" opacity=".85"/><rect x="10" y="28" width="32" height="10" rx="5" fill="currentColor" opacity=".55"/><rect x="10" y="42" width="38" height="10" rx="5" fill="currentColor" opacity=".35"/></svg>
+            </div>
+          </button>
+          <button type="button" class="tile tile-roulette tile-enter" id="widget-roulette" style="--d:2">
+            <div class="tile-kicker">Рулетка</div>
+            <div class="tile-value" id="widget-spin-val">Спин</div>
+            <div class="tile-sub" id="widget-spin-foot">Бесплатно сегодня</div>
+            <div class="tile-illu" aria-hidden="true">
+              <svg viewBox="0 0 64 64" fill="none"><circle cx="32" cy="32" r="22" stroke="currentColor" stroke-width="8" opacity=".35"/><path d="M32 10a22 22 0 0 1 19 11" stroke="currentColor" stroke-width="8" stroke-linecap="round"/><circle cx="32" cy="32" r="6" fill="currentColor"/></svg>
+            </div>
+          </button>
         </div>
 
-        <div class="rings-card" id="rings-card">
+        <button type="button" class="tile tile-level tile-enter" id="widget-reward" style="--d:3">
+          <div class="tile-kicker" id="reward-kicker">Путь</div>
+          <div class="tile-value" id="reward-title">Уровень 1</div>
+          <div class="tile-sub" id="reward-sub">Следующая награда</div>
+          <div class="level-line"><i id="home-level-line"></i></div>
+        </button>
+
+        <div class="tile-grid">
+          <button type="button" class="tile tile-event tile-enter" id="widget-event" style="--d:4">
+            <div class="tile-kicker">Сезон</div>
+            <div class="tile-value event-title">Зимняя ночь</div>
+            <div class="tile-sub">Снег и подарки</div>
+            <div class="tile-illu" aria-hidden="true">
+              <svg viewBox="0 0 64 64" fill="none"><path d="M32 8v6M32 50v6M8 32h6M50 32h6M14 14l4 4M46 46l4 4M14 50l4-4M46 18l4-4" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><circle cx="32" cy="32" r="8" fill="currentColor" opacity=".8"/></svg>
+            </div>
+          </button>
+          <button type="button" class="tile tile-shop tile-enter" id="widget-shop" style="--d:5">
+            <div class="tile-kicker">Магазин</div>
+            <div class="tile-value">Одежда</div>
+            <div class="tile-sub">Шапки и фоны</div>
+            <div class="tile-illu" aria-hidden="true">
+              <svg viewBox="0 0 64 64" fill="none"><path d="M16 24h32l-3 28H19L16 24z" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M24 24a8 8 0 0 1 16 0" stroke="currentColor" stroke-width="4"/></svg>
+            </div>
+          </button>
+        </div>
+
+        <div class="tile tile-rings tile-enter" id="rings-card" style="--d:6">
           <svg class="rings" id="rings-svg" viewBox="0 0 128 128" aria-hidden="true"></svg>
           <div class="ring-legend" id="ring-legend"></div>
         </div>
@@ -202,7 +215,7 @@
         <div class="path-hero" id="path-hero">
           <div class="path-hero-top">
             <div>
-              <div class="streak-kicker" id="path-kicker">Сейчас</div>
+              <div class="tile-kicker" id="path-kicker">Сейчас</div>
               <div class="path-level" id="path-level">Уровень 1</div>
             </div>
             <div class="path-xp" id="path-xp">0 / 32 XP</div>
@@ -220,7 +233,6 @@
         </div>
 
         <div id="path-chapters"></div>
-        <button class="btn btn-text" id="btn-reset-path">Сбросить демо</button>
       </div>
     </section>
 
@@ -231,13 +243,36 @@
           <h1 class="large-title">Магазин</h1>
           <div class="coin-chip"><span class="coin-ic"></span><span id="shop-coins">0</span></div>
         </div>
-        <div class="segment" id="shop-segment" role="tablist">
-          <button type="button" class="on" data-seg="hats">Одежда</button>
-          <button type="button" data-seg="bgs">Фоны</button>
+
+        <button type="button" class="shop-promo" id="shop-promo">
+          <div class="shop-promo-copy">
+            <div class="tile-kicker">Событие</div>
+            <div class="shop-promo-title">Зимний маркет</div>
+            <div class="shop-promo-sub">Награды сезона и редкие вещи</div>
+          </div>
+          <div class="shop-promo-timer" id="shop-promo-cd">--:--</div>
+        </button>
+
+        <div class="chip-row" id="shop-cats" role="tablist">
+          <button type="button" class="chip on" data-cat="all">Все</button>
+          <button type="button" class="chip" data-cat="food">Еда</button>
+          <button type="button" class="chip" data-cat="hat">Одежда</button>
+          <button type="button" class="chip" data-cat="bg">Фоны</button>
+          <button type="button" class="chip" data-cat="toy">Игрушки</button>
         </div>
-        <div class="shop-grid" id="shop-hats"></div>
-        <div class="shop-grid shop-grid-bg hidden" id="shop-bgs"></div>
-        <p class="legal">Звёзды — только за внешний вид, не за силу. Корона также открывается на 50 уровне.</p>
+
+        <div class="shop-search-row">
+          <input class="shop-search" id="shop-search" type="search" placeholder="Поиск" autocomplete="off" />
+        </div>
+        <div class="chip-row chip-row-filters" id="shop-filters">
+          <button type="button" class="chip filter on" data-filter="all">Все</button>
+          <button type="button" class="chip filter" data-filter="mine">Моё</button>
+          <button type="button" class="chip filter" data-filter="new">Новое</button>
+          <button type="button" class="chip filter" data-filter="cheap">До 40</button>
+        </div>
+
+        <div class="market-grid" id="market-grid"></div>
+        <p class="legal">Еда и игрушки тратятся из инвентаря. Одежда и фоны остаются у моджи. Звёзды — демо.</p>
       </div>
     </section>
 
@@ -291,6 +326,30 @@
       </div>
     </section>
 
+    <section class="screen hidden has-nav" id="screen-profile" data-screen="profile">
+      <div class="compact-bar" data-compact>Профиль</div>
+      <div class="screen-body" data-scroll-title>
+        <h1 class="large-title">Профиль</h1>
+
+        <div class="profile-head">
+          <div class="avatar" id="profile-avatar">М</div>
+          <div class="profile-id">
+            <div class="profile-name" id="profile-user">Игрок</div>
+            <div class="profile-handle" id="profile-handle">@moji_app</div>
+            <div class="profile-moji" id="profile-moji">Моджи · ур. 1</div>
+          </div>
+        </div>
+
+        <div class="stats-grid" id="stats-grid"></div>
+
+        <h2 class="section-label">Достижения</h2>
+        <div class="badge-row" id="badge-row"></div>
+
+        <h2 class="section-label">Настройки</h2>
+        <div class="group settings-list" id="settings-list"></div>
+      </div>
+    </section>
+
     <nav class="tabbar hidden" id="tabbar">
       <button class="tab active" data-tab="home">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11.2 12 4l8 7.2V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1v-8.8z"/></svg>
@@ -308,15 +367,20 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8h12l-.8 11.2a1 1 0 0 1-1 .8H7.8a1 1 0 0 1-1-.8L6 8z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg>
         <span>Магазин</span>
       </button>
+      <button class="tab" data-tab="profile">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.2"/><path d="M6 19c1.3-3.2 3.3-4.8 6-4.8s4.7 1.6 6 4.8"/></svg>
+        <span>Профиль</span>
+      </button>
     </nav>
   </div>
 
   <div class="toast hidden" id="toast"></div>
   <div class="modal hidden" id="modal"></div>
+  <div class="burst hidden" id="burst" aria-hidden="true"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
-  <script src="loop.js"></script>
-  <script src="mascots.js"></script>
-  <script src="app.js"></script>
+  <script src="loop.js?v=5"></script>
+  <script src="mascots.js?v=5"></script>
+  <script src="app.js?v=5"></script>
 </body>
 </html>
