@@ -1,34 +1,40 @@
 /* Pack path: assets/mascots/{id}/{state}.png
-   If the file is missing, a placeholder slot («твой моджи») is shown. */
+   If the file is missing, a placeholder slot («твой моджи») is shown.
+   The only shipped art is the user splash (assets/brand/splash.png)
+   and an optional pixel-exact hero crop (assets/mascots/axolotl/hero.png).
+*/
 const MASCOTS = [
   {
-    id: "dino",
-    species: "Дино",
-    label: "Дракоша",
-    trait: "Смелый, огненный, любит покрасоваться",
-    accent: "#3A3A3C",
-    stage: "#E5E5EA",
+    id: "axolotl",
+    species: "Аксолотль",
+    label: "Моджи-аксолотль",
+    trait: "Любит подарки и зимние шарфы",
+    accent: "#FF6B9A",
+    stage: "#0E1424",
+    hero: "assets/mascots/axolotl/hero.png",
+    splash: "assets/brand/splash.png",
   },
 ];
 
 const EMOTION_FALLBACKS = {
-  idle: ["idle", "laugh", "happy"],
-  happy: ["happy", "laugh", "idle"],
+  idle: ["hero", "idle", "laugh", "happy"],
+  happy: ["hero", "happy", "laugh", "idle"],
   sad: ["sad", "cry", "hungry", "idle"],
   hungry: ["hungry", "cry", "sad", "idle"],
   sleep: ["sleep", "idle"],
-  proud: ["proud", "glasses", "idle"],
-  reward: ["reward", "fire", "laugh", "idle"],
+  proud: ["proud", "glasses", "hero", "idle"],
+  reward: ["reward", "hero", "idle"],
   idea: ["idea", "curious", "idle"],
   peek: ["peek", "curious", "idle"],
-  love: ["heart", "idle"],
-  feed: ["laugh", "happy", "idle"],
+  love: ["heart", "hero", "idle"],
+  feed: ["hero", "laugh", "happy", "idle"],
 };
 
 function cosmeticEmotion(hat) {
   if (hat === "glasses") return "glasses";
   if (hat === "crown") return "crown";
   if (hat === "wizard") return "wizard";
+  if (hat === "scarf") return "scarf";
   return null;
 }
 
@@ -36,7 +42,7 @@ function assetCandidates(id, emotion, hat) {
   const chain = [];
   const cosmetic = cosmeticEmotion(hat);
   if (cosmetic) chain.push(cosmetic);
-  const fb = EMOTION_FALLBACKS[emotion] || [emotion, "idle"];
+  const fb = EMOTION_FALLBACKS[emotion] || [emotion, "hero", "idle"];
   chain.push(...fb);
   const seen = new Set();
   const out = [];
@@ -63,7 +69,7 @@ function renderMascot(el, { id, emotion = "idle", hat = "none", className = "" }
     </div>`;
   const img = el.querySelector(".ph-img");
   const fb = el.querySelector(".ph-fallback");
-  const paths = assetCandidates(id || "dino", emotion, hat);
+  const paths = assetCandidates(id || "axolotl", emotion, hat);
   let i = 0;
   const tryNext = () => {
     if (i >= paths.length) {
@@ -80,6 +86,32 @@ function renderMascot(el, { id, emotion = "idle", hat = "none", className = "" }
     img.src = src;
   };
   tryNext();
+}
+
+function bindHero(root, preferCrop) {
+  if (!root) return;
+  const img = root.querySelector(".hero-scene") || root.querySelector("img.hero-scene");
+  if (!img) return;
+  const sources = [];
+  if (preferCrop) sources.push("assets/mascots/axolotl/hero.png");
+  sources.push("assets/brand/splash.png");
+  let i = 0;
+  const fail = () => root.classList.remove("has-art");
+  const ok = () => {
+    img.classList.remove("hidden");
+    root.classList.add("has-art");
+  };
+  const next = () => {
+    if (i >= sources.length) {
+      img.classList.add("hidden");
+      fail();
+      return;
+    }
+    img.onload = ok;
+    img.onerror = () => { i += 1; next(); };
+    img.src = sources[i];
+  };
+  next();
 }
 
 function daysWord(n) {
