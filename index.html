@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#F2F2F7" />
+  <title>Moji</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
+  <div id="app">
+
+    <section class="screen splash" id="screen-splash" data-screen="splash">
+      <div class="splash-mark">Moji</div>
+      <p class="splash-tag">Моджи живут в Телеграме</p>
+    </section>
+
+    <section class="screen hidden" id="screen-onboard" data-screen="onboard">
+      <div class="onboard-track" id="onboard-track">
+        <article class="onboard-slide">
+          <div class="mascot-slot slot-lg onboard-art" data-emo="idle"></div>
+          <h1>Это твой моджи</h1>
+          <p>Заботься о нём каждый день — корми, обнимай и не забывай про серию.</p>
+        </article>
+        <article class="onboard-slide">
+          <div class="mascot-slot slot-lg onboard-art" data-emo="proud"></div>
+          <h1>Копи серию</h1>
+          <p>Заходи каждый день, выполняй задания и смотри, как твой моджи растёт.</p>
+        </article>
+        <article class="onboard-slide">
+          <div class="mascot-slot slot-lg onboard-art" data-emo="reward"></div>
+          <h1>Делись с друзьями</h1>
+          <p>Карточку серии можно отправить прямо в чат — пусть все видят твоего моджи.</p>
+        </article>
+      </div>
+      <div class="dots" id="onboard-dots"></div>
+      <div class="screen-footer">
+        <button class="btn btn-accent" id="btn-onboard-next">Далее</button>
+        <button class="btn btn-text" id="btn-onboard-skip">Пропустить</button>
+      </div>
+    </section>
+
+    <section class="screen hidden" id="screen-name" data-screen="name">
+      <div class="nav-row">
+        <button class="icon-btn" id="btn-name-back" aria-label="Назад">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5 8 12l7 7"/></svg>
+        </button>
+      </div>
+      <div class="screen-body name-body">
+        <h1 class="large-title">Как зовут твоего моджи?</h1>
+        <div class="name-stage">
+          <div class="mascot-slot slot-lg" id="name-mascot"></div>
+        </div>
+        <input class="name-input" id="name-input" maxlength="14" placeholder="Например, Буся" autocomplete="off" />
+        <p class="hint">Имя можно будет поменять позже</p>
+      </div>
+      <div class="screen-footer">
+        <button class="btn btn-accent" id="btn-name-go" disabled>Продолжить</button>
+      </div>
+    </section>
+
+    <section class="screen hidden has-nav" id="screen-home" data-screen="home">
+      <div class="screen-body">
+        <div class="topbar">
+          <div class="coin-chip" aria-label="монеты">
+            <span class="coin-ic"></span>
+            <span id="home-coins">0</span>
+          </div>
+          <div class="level-chip">
+            <span id="home-level">Ур. 1</span>
+            <div class="xp-bar"><i id="home-xp-bar"></i></div>
+          </div>
+        </div>
+
+        <div class="banner banner-risk hidden" id="banner-risk">
+          <div class="banner-mark" aria-hidden="true">!</div>
+          <div class="banner-text">
+            <strong>Спаси серию своего моджи</strong>
+            <span>Твой моджи голоден, и серия под угрозой</span>
+          </div>
+        </div>
+
+        <div class="streak-card" id="streak-card">
+          <div class="streak-head">
+            <div>
+              <div class="streak-kicker">Серия</div>
+              <div class="streak-days" id="streak-days">1 день</div>
+            </div>
+            <div class="streak-sub">с моджи</div>
+          </div>
+          <div class="week-row" id="week-row"></div>
+        </div>
+
+        <div class="stage" id="home-stage">
+          <div class="mascot-slot slot-stage" id="home-mascot"></div>
+          <div class="pet-name" id="home-name"></div>
+        </div>
+
+        <div class="group">
+          <div class="row">
+            <span>Сытость</span>
+            <div class="bar"><i id="bar-hunger"></i></div>
+          </div>
+          <div class="row">
+            <span>Настроение</span>
+            <div class="bar bar-mood"><i id="bar-mood"></i></div>
+          </div>
+        </div>
+
+        <button class="btn btn-accent btn-feed" id="btn-feed">Покормить моджи · 10 монет</button>
+      </div>
+    </section>
+
+    <section class="screen hidden has-nav" id="screen-tasks" data-screen="tasks">
+      <div class="screen-body">
+        <h1 class="large-title">Задания</h1>
+        <p class="lead">Заботься о моджи — получай опыт и монеты</p>
+        <div class="group task-list" id="task-list"></div>
+      </div>
+    </section>
+
+    <section class="screen hidden has-nav" id="screen-shop" data-screen="shop">
+      <div class="screen-body">
+        <div class="topbar topbar-title">
+          <h1 class="large-title">Магазин</h1>
+          <div class="coin-chip"><span class="coin-ic"></span><span id="shop-coins">0</span></div>
+        </div>
+        <div class="segment" id="shop-segment" role="tablist">
+          <button type="button" class="on" data-seg="hats">Одежда</button>
+          <button type="button" data-seg="bgs">Фоны</button>
+        </div>
+        <div class="shop-grid" id="shop-hats"></div>
+        <div class="shop-grid shop-grid-bg hidden" id="shop-bgs"></div>
+        <p class="legal">Звёзды — только за внешний вид, не за силу</p>
+      </div>
+    </section>
+
+    <section class="screen hidden has-nav" id="screen-share" data-screen="share">
+      <div class="screen-body">
+        <h1 class="large-title">Поделись серией</h1>
+        <p class="lead">Карточка твоего моджи для чата</p>
+        <div class="share-wrap">
+          <div class="share-card" id="share-card-node">
+            <div class="share-top">
+              <div class="mascot-slot slot-share on-dark" id="share-mascot"></div>
+              <div class="share-copy">
+                <div class="share-kicker">Серия</div>
+                <div class="share-days" id="share-days">1 день</div>
+                <div class="share-with" id="share-with">с моджи</div>
+              </div>
+            </div>
+            <div class="week-row week-light" id="share-week"></div>
+            <div class="share-brand">Moji · @moji_app</div>
+          </div>
+        </div>
+        <button class="btn btn-accent" id="btn-download-card">Скачать карточку</button>
+        <button class="btn btn-ghost" id="btn-copy-share">Скопировать текст</button>
+        <button class="btn btn-text" id="btn-reset">Сбросить демо</button>
+      </div>
+    </section>
+
+    <nav class="tabbar hidden" id="tabbar">
+      <button class="tab active" data-tab="home">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11.2 12 4l8 7.2V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1v-8.8z"/></svg>
+        <span>Дом</span>
+      </button>
+      <button class="tab" data-tab="tasks">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h12M8 12h12M8 18h12"/><path d="M5 6h.01M5 12h.01M5 18h.01"/></svg>
+        <span>Задания</span>
+      </button>
+      <button class="tab" data-tab="shop">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8h12l-.8 11.2a1 1 0 0 1-1 .8H7.8a1 1 0 0 1-1-.8L6 8z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg>
+        <span>Магазин</span>
+      </button>
+      <button class="tab" data-tab="share">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="6.5" cy="12" r="2.2"/><circle cx="17" cy="6.5" r="2.2"/><circle cx="17" cy="17.5" r="2.2"/><path d="M8.5 11.2 14.8 7.6M8.5 12.8 14.8 16.4"/></svg>
+        <span>Серия</span>
+      </button>
+    </nav>
+  </div>
+
+  <div class="toast hidden" id="toast"></div>
+  <div class="modal hidden" id="modal"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <script src="mascots.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
