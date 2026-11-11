@@ -67,9 +67,9 @@ function defaultState() {
     hunger: 55,
     mood: 70,
     hat: "none",
-    bg: "night",
+    bg: "none",
     ownedHats: ["none"],
-    ownedBgs: ["room", "night"],
+    ownedBgs: ["room"],
     tasksDone: {},
     tasksDay: today,
     freezes: 1,
@@ -107,6 +107,12 @@ function migrate(s) {
   s.streakLost = !!s.streakLost;
   s.frozenToday = !!s.frozenToday;
   s.settings = Object.assign({ sound: true, haptics: true, notifications: false, theme: "auto" }, s.settings || {});
+  if (!s.bgPlainDefault) {
+    if (s.bg === "night") s.bg = "none";
+    s.ownedBgs = (s.ownedBgs || ["room"]).filter((id) => id !== "night");
+    if (!s.ownedBgs.includes("room")) s.ownedBgs.push("room");
+    s.bgPlainDefault = true;
+  }
   ensureWeekly(s);
   const cap = xpToNext(s.level);
   if (cap && s.xp >= cap) s.xp = cap - 1;
@@ -348,6 +354,39 @@ function renderHomeWidgets() {
   }
 }
 
+function applyHomeBg(hero) {
+  if (!hero) return;
+  hero.classList.remove("has-bg", "bg-night", "bg-meadow", "bg-room", "has-art");
+  const id = state.bg;
+  if (id === "night" || id === "meadow" || id === "room") {
+    hero.classList.add("has-bg", "bg-" + id);
+  }
+}
+function playHome() {
+  const toys = state.ownedToys || [];
+  if (toys.length) {
+    playToy(toys[0]);
+    if (document.querySelector('[data-screen="home"]:not(.hidden)')) renderHome();
+    return;
+  }
+  state.mood = Math.min(100, state.mood + 10);
+  haptic("success");
+  save();
+  toast("Поиграли с моджи");
+  renderHome();
+}
+function openWardrobe() {
+  shopCat = "hat";
+  shopFilter = "all";
+  shopQuery = "";
+  showScreen("shop");
+  document.querySelectorAll("#shop-cats .chip").forEach((b) => b.classList.toggle("on", b.dataset.cat === "hat"));
+  document.querySelectorAll("#shop-filters .chip").forEach((b) => b.classList.toggle("on", b.dataset.filter === "all"));
+  const search = $("shop-search");
+  if (search) search.value = "";
+  renderMarket();
+  haptic("light");
+}
 function renderHome() {
   const m = spec();
   const need = xpToNext(state.level) || 1;
@@ -359,11 +398,8 @@ function renderHome() {
   renderWeek($("week-row"), state.week);
   $("banner-risk").classList.add("hidden");
   const hero = $("home-hero");
-  hero.classList.toggle("bg-night", state.bg === "night");
-  hero.classList.toggle("bg-meadow", state.bg === "meadow");
-  hero.classList.toggle("bg-room", state.bg === "room");
+  applyHomeBg(hero);
   renderMascot($("home-mascot"), { id: "axolotl", emotion: homeEmotion(), hat: state.hat, className: "slot-hero" });
-  bindHero(hero, true);
   $("home-name").textContent = state.name || m.label;
   const titleEl = $("home-title");
   if (state.activeTitle) {
@@ -935,6 +971,8 @@ function bind() {
   };
 
   $("btn-feed").onclick = feed;
+  if ($("btn-play")) $("btn-play").onclick = playHome;
+  if ($("btn-dress")) $("btn-dress").onclick = openWardrobe;
   $("btn-download-card").onclick = downloadCard;
   $("btn-copy-share").onclick = copyShare;
   $("streak-card").onclick = () => { shareKind = "streak"; showScreen("share"); };
@@ -1034,13 +1072,15 @@ function boot() {
 /* ========== v5: theme, chrome, mood, market, profile, motion ========== */
 function applyChrome() {
   const root = document.documentElement;
-  let top = 0, bot = 0, h = window.innerHeight;
+  let top = 0, bot = 0, left = 0, right = 0, h = window.innerHeight;
   try {
     if (tg) {
       const sa = tg.safeAreaInset || {};
       const csa = tg.contentSafeAreaInset || {};
       top = (Number(sa.top) || 0) + (Number(csa.top) || 0);
       bot = (Number(sa.bottom) || 0) + (Number(csa.bottom) || 0);
+      left = (Number(sa.left) || 0) + (Number(csa.left) || 0);
+      right = (Number(sa.right) || 0) + (Number(csa.right) || 0);
       if (tg.viewportStableHeight) h = tg.viewportStableHeight;
     }
   } catch {}
@@ -1049,6 +1089,8 @@ function applyChrome() {
   }
   root.style.setProperty("--tg-safe-t", top + "px");
   root.style.setProperty("--tg-safe-b", bot + "px");
+  root.style.setProperty("--tg-safe-l", left + "px");
+  root.style.setProperty("--tg-safe-r", right + "px");
   root.style.setProperty("--app-h", h + "px");
 }
 function systemTheme() {
@@ -1145,16 +1187,16 @@ const CATALOG = [
   { id: "sleigh", kind: "toy", name: "Саночки", price: 60, rarity: "редкий", sku: "M-404", mood: 30, tint: "#5AC8FA", pat: "waves", icon: "sleigh" },
 ];
 const CAT_ICONS = {
-  food: '<path d="M8 36c0 12 10 20 24 20s24-8 24-20H8z" fill="currentColor"/><path d="M16 36V18a12 12 0 0 1 24 0v18" stroke="currentColor" stroke-width="4" fill="none"/>',
-  cake: '<path d="M10 30h44v18H10z" fill="currentColor"/><path d="M16 30c4-8 8-8 12 0s8 8 12 0 8-8 12 0" stroke="currentColor" stroke-width="4" fill="none"/>',
-  tea: '<path d="M14 24h28v16a12 12 0 0 1-24 0V24z" fill="currentColor"/><path d="M42 28h8a6 6 0 0 1 0 12h-4" stroke="currentColor" stroke-width="4" fill="none"/>',
-  berry: '<circle cx="26" cy="34" r="10" fill="currentColor"/><circle cx="38" cy="34" r="10" fill="currentColor" opacity=".85"/><path d="M32 16c0 8 4 10 8 12" stroke="currentColor" stroke-width="4" fill="none"/>',
+  food: '<path d="M12 34c0 12 9 20 20 20s20-8 20-20H12z" fill="currentColor"/><path d="M20 34V20a12 12 0 0 1 24-2" stroke="currentColor" stroke-width="4" fill="none" stroke-linecap="round"/><circle cx="32" cy="16" r="3.5" fill="currentColor"/>',
+  cake: '<path d="M14 32h36v18H14z" fill="currentColor"/><path d="M14 32c6-10 10-10 18 0 8-10 12-10 18 0" fill="currentColor" opacity=".9"/><rect x="30" y="14" width="4" height="10" rx="1" fill="currentColor"/><circle cx="32" cy="13" r="3" fill="currentColor"/>',
+  tea: '<path d="M16 22h28v18a12 12 0 0 1-24 0V22z" fill="currentColor"/><path d="M44 26h8a7 7 0 0 1 0 14h-5" stroke="currentColor" stroke-width="4" fill="none" stroke-linecap="round"/><path d="M16 22h28v4H16z" fill="currentColor" opacity=".7"/><path d="M26 12c0 6 2 6 2 10M34 10c0 6 2 6 2 12" stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round"/>',
+  berry: '<circle cx="24" cy="36" r="11" fill="currentColor"/><circle cx="40" cy="36" r="11" fill="currentColor" opacity=".9"/><circle cx="32" cy="26" r="9" fill="currentColor" opacity=".95"/><path d="M32 12c2 6 8 8 12 8" stroke="currentColor" stroke-width="3.5" fill="none" stroke-linecap="round"/>',
   bow: ITEM_ICONS.bow, beanie: ITEM_ICONS.beanie, glasses: ITEM_ICONS.glasses, scarf: ITEM_ICONS.scarf, crown: ITEM_ICONS.crown,
-  bg: '<rect x="10" y="16" width="44" height="32" rx="6" fill="currentColor" opacity=".85"/>',
-  ball: '<circle cx="32" cy="32" r="16" fill="none" stroke="currentColor" stroke-width="4"/><path d="M16 32h32M32 16v32" stroke="currentColor" stroke-width="3"/>',
-  pillow: '<rect x="10" y="22" width="44" height="22" rx="10" fill="currentColor"/>',
-  lantern: '<path d="M24 18h16v6H24zM22 24h20l-4 22H26L22 24z" fill="currentColor"/><path d="M32 10v8" stroke="currentColor" stroke-width="4"/>',
-  sleigh: '<path d="M12 36h32l8-10H28L12 36z" fill="currentColor"/><path d="M12 44h40" stroke="currentColor" stroke-width="4" fill="none"/>',
+  bg: '<rect x="10" y="14" width="44" height="36" rx="8" fill="currentColor"/><path d="M10 38l12-10 10 8 8-6 14 12" fill="currentColor" opacity=".45"/>',
+  ball: '<circle cx="32" cy="32" r="18" fill="currentColor"/><path d="M14 32h36M32 14v36" stroke="rgba(0,0,0,.2)" stroke-width="3"/><path d="M18 20c8 6 20 6 28 0M18 44c8-6 20-6 28 0" stroke="rgba(0,0,0,.2)" stroke-width="3" fill="none"/>',
+  pillow: '<rect x="8" y="22" width="48" height="24" rx="12" fill="currentColor"/><rect x="14" y="28" width="36" height="12" rx="6" fill="currentColor" opacity=".55"/>',
+  lantern: '<path d="M26 16h12v6H26z" fill="currentColor"/><path d="M22 22h20l-3 24H25L22 22z" fill="currentColor"/><path d="M32 8v8" stroke="currentColor" stroke-width="4" stroke-linecap="round"/><circle cx="32" cy="34" r="5" fill="rgba(255,255,255,.55)"/>',
+  sleigh: '<path d="M10 34h34l10-12H30L10 34z" fill="currentColor"/><path d="M8 46c4-6 10-6 16 0h28" stroke="currentColor" stroke-width="4" fill="none" stroke-linecap="round"/>',
 };
 
 let shopCat = "all";
@@ -1252,13 +1294,16 @@ function renderMarket() {
     else if (it.kind === "toy" && owned) sec = `<button class="m-sec" data-play="${it.id}">Играть</button>`;
     else if ((it.kind === "hat" || it.kind === "bg") && owned && !eq) sec = `<button class="m-sec" data-equip="${it.kind}:${it.id}">Надеть</button>`;
     const countBadge = it.kind === "food" && count > 0 ? `<span class="m-owned-count">×${count}</span>` : "";
+    const rarityColor = it.rarity === "эпик" ? "#C9972A" : it.rarity === "редкий" ? "#5AC8FA" : "#C7C7CC";
     return `<article class="m-card" data-item="${it.id}">
       <div class="m-art pat-${it.pat}" style="--tint:${it.tint}">
         ${countBadge}
-        <svg viewBox="${vb}" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${icon}</svg>
+        <div class="m-icon">
+          <svg viewBox="${vb}" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${icon}</svg>
+        </div>
       </div>
       <div class="m-name">${it.name}</div>
-      <div class="m-meta">${it.rarity} · #${it.sku}</div>
+      <div class="m-meta"><i class="m-rarity" style="--rarity:${rarityColor}"></i>${it.rarity} · #${it.sku}</div>
       <div class="m-actions">
         <button class="${priceCls}" data-buy="${it.id}">${priceLbl}</button>
         ${sec}
@@ -1421,6 +1466,37 @@ function itemTotal() {
   const food = Object.values(state.food || {}).reduce((a, b) => a + b, 0);
   return hats + bgs + toys + food;
 }
+const SET_ICONS = {
+  haptics: '<path d="M8 8h8v12H8z"/><path d="M5 10v8M19 10v8"/>',
+  sound: '<path d="M6 10h4l6-4v16l-6-4H6z"/><path d="M19 10a4 4 0 0 1 0 8"/>',
+  notifications: '<path d="M6 16h12l-1-4a5 5 0 0 0-10 0z"/><path d="M10 16v1a2 2 0 0 0 4 0v-1"/><path d="M12 5v2"/>',
+  theme: '<circle cx="12" cy="12" r="7"/><path d="M12 5v14A7 7 0 0 0 12 5z" fill="currentColor"/>',
+  lang: '<circle cx="12" cy="12" r="8"/><path d="M4 12h16M12 4c3 3 3 13 0 16M12 4c-3 3-3 13 0 16"/>',
+  reset: '<path d="M4 12a8 8 0 1 0 2.3-5.7"/><path d="M4 4v6h6"/>',
+  a: '<circle cx="12" cy="12" r="8"/><path d="M12 11v5M12 8h.01"/>',
+};
+function setProfileAvatar(el, user, name) {
+  const letter = (name[0] || "М").toUpperCase();
+  const fallback = () => {
+    el.classList.add("avatar-fallback");
+    el.classList.remove("has-photo");
+    el.style.backgroundImage = "";
+    el.innerHTML = `<span>${letter}</span>`;
+  };
+  if (user && user.photo_url) {
+    const img = new Image();
+    img.onload = () => {
+      el.classList.remove("avatar-fallback");
+      el.classList.add("has-photo");
+      el.style.backgroundImage = `url("${user.photo_url}")`;
+      el.innerHTML = "";
+    };
+    img.onerror = fallback;
+    img.src = user.photo_url;
+  } else {
+    fallback();
+  }
+}
 function renderProfile() {
   const u = tgUser();
   const avatar = $("profile-avatar");
@@ -1429,13 +1505,7 @@ function renderProfile() {
   $("profile-user").textContent = name;
   $("profile-handle").textContent = handle;
   $("profile-moji").textContent = `${state.name || "Моджи"} · ур. ${state.level}` + (state.activeTitle ? ` · ${state.activeTitle}` : "");
-  if (u && u.photo_url) {
-    avatar.style.backgroundImage = `url(${u.photo_url})`;
-    avatar.textContent = "";
-  } else {
-    avatar.style.backgroundImage = "";
-    avatar.textContent = (name[0] || "М").toUpperCase();
-  }
+  setProfileAvatar(avatar, u, name);
   $("stats-grid").innerHTML = [
     [state.streak, "Серия"],
     [state.bestStreak || state.streak, "Рекорд"],
@@ -1467,12 +1537,12 @@ function renderProfile() {
     { id: "theme", title: "Тема", sub: themeLabel(s.theme), color: "#1C1C1E", type: "nav", icon: "t" },
     { id: "lang", title: "Язык", sub: "Русский", color: "#34C759", type: "nav", icon: "l" },
     { id: "reset", title: "Сбросить прогресс", sub: "Начать демо заново", color: "#FF3B30", type: "nav", icon: "r" },
-    { id: "about", title: "О приложении", sub: "Moji 5 · @moji_app", color: "#AF52DE", type: "nav", icon: "a" },
+    { id: "about", title: "О приложении", sub: "Moji 6 · @moji_app", color: "#AF52DE", type: "nav", icon: "a" },
   ];
   $("settings-list").innerHTML = rows.map((r) => `
     <button type="button" class="setting" data-set="${r.id}">
       <div class="set-glyph" style="background:${r.color}">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="7"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${SET_ICONS[r.id] || SET_ICONS.a}</svg>
       </div>
       <div class="set-text"><strong>${r.title}</strong><span>${r.sub}</span></div>
       ${r.type === "switch" ? `<span class="switch ${r.on ? "on" : ""}" data-sw="${r.id}"><i></i></span>` : `<span class="set-chevron">›</span>`}
@@ -1521,7 +1591,7 @@ function onSetting(e) {
     openModal({
       emotion: "idle",
       title: "Moji",
-      text: "Мини-приложение для Telegram. Версия 5. Чистая забота о моджи, без крипты. @moji_app",
+      text: "Мини-приложение для Telegram. Версия 6. Чистая забота о моджи, без крипты. @moji_app",
       ok: "Закрыть",
     });
   }

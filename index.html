@@ -5,11 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#F3F3F8" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="format-detection" content="telephone=no" />
   <title>Moji</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Nunito:wght@700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=5" />
+  <link rel="stylesheet" href="styles.css?v=6" />
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
@@ -21,17 +22,15 @@
         <img class="splash-art" id="splash-art" src="assets/brand/splash.png" alt="" />
       </picture>
       <div class="splash-fallback hidden" id="splash-fallback"></div>
-      <div class="spinner splash-loader" id="splash-spinner" aria-label="Загрузка"></div>
+      <div class="splash-loader-wrap" aria-hidden="false">
+        <div class="spinner splash-loader" id="splash-spinner" aria-label="Загрузка"></div>
+      </div>
     </section>
 
     <section class="screen hidden" id="screen-onboard" data-screen="onboard">
       <div class="onboard-track" id="onboard-track">
         <article class="onboard-slide">
-          <div class="hero onboard-hero" data-hero="1">
-            <img class="hero-scene hidden" alt="" />
-            <div class="hero-scrim"></div>
-            <div class="mascot-slot slot-lg onboard-art" data-emo="idle"></div>
-          </div>
+          <div class="mascot-slot slot-lg onboard-art" data-emo="idle"></div>
           <h1>Это твой моджи</h1>
           <p>Аксолотль, который живёт с тобой в Телеграме. Заботься о нём каждый день.</p>
         </article>
@@ -63,11 +62,7 @@
         <h1 class="large-title">Как зовут твоего моджи?</h1>
         <p class="lead">Аксолотль будет отзываться на это имя</p>
         <div class="name-stage">
-          <div class="hero name-hero" data-hero="1">
-            <img class="hero-scene hidden" alt="" />
-            <div class="hero-scrim"></div>
-            <div class="mascot-slot slot-lg" id="name-mascot"></div>
-          </div>
+          <div class="mascot-slot slot-lg" id="name-mascot"></div>
         </div>
         <input class="name-input" id="name-input" maxlength="14" placeholder="Например, Буся" autocomplete="off" />
         <p class="hint">Имя можно будет поменять позже</p>
@@ -78,9 +73,9 @@
     </section>
 
     <section class="screen hidden has-nav screen-home" id="screen-home" data-screen="home">
+      <div class="home-scroll" id="home-scroll">
       <div class="home-scene" id="home-hero">
-        <img class="hero-scene hidden" id="hero-scene" alt="" />
-        <div class="home-scene-fade"></div>
+        <div class="home-bg" id="home-bg" aria-hidden="true"></div>
         <div class="topbar home-topbar">
           <div class="coin-chip" aria-label="монеты">
             <span class="coin-ic"></span>
@@ -96,9 +91,24 @@
           <div class="pet-name" id="home-name"></div>
           <div class="pet-title hidden" id="home-title"></div>
         </div>
+        <div class="home-actions">
+          <button type="button" class="act-btn act-feed" id="btn-feed">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 13c0 5 3.5 8 8 8s8-3 8-8H4z"/><path d="M8 13V8a4 4 0 0 1 8 0v5"/></svg>
+            <span>Покормить</span>
+            <small><span class="coin-ic"></span>10</small>
+          </button>
+          <button type="button" class="act-btn act-play" id="btn-play">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M12 8v8M8 12h8"/></svg>
+            <span>Играть</span>
+          </button>
+          <button type="button" class="act-btn act-dress" id="btn-dress">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h8l2 4-4 2v8H10v-8L6 10l2-4z"/></svg>
+            <span>Одеть</span>
+          </button>
+        </div>
       </div>
 
-      <div class="screen-body home-widgets" id="home-scroll">
+      <div class="home-widgets">
         <div class="banner banner-risk hidden" id="banner-risk">
           <div class="banner-mark" aria-hidden="true">!</div>
           <div class="banner-text">
@@ -169,7 +179,7 @@
           <div class="ring-legend" id="ring-legend"></div>
         </div>
 
-        <button class="btn btn-accent btn-feed" id="btn-feed">Покормить моджи · 10 монет</button>
+      </div>
       </div>
     </section>
 
@@ -248,9 +258,18 @@
           <div class="shop-promo-copy">
             <div class="tile-kicker">Событие</div>
             <div class="shop-promo-title">Зимний маркет</div>
-            <div class="shop-promo-sub">Награды сезона и редкие вещи</div>
+            <div class="shop-promo-sub">Редкие вещи до конца недели</div>
           </div>
-          <div class="shop-promo-timer" id="shop-promo-cd">--:--</div>
+          <div class="shop-promo-timer">
+            <span class="shop-promo-timer-lab">до конца</span>
+            <span id="shop-promo-cd">--:--</span>
+          </div>
+          <div class="shop-promo-illu" aria-hidden="true">
+            <svg viewBox="0 0 80 80" fill="none">
+              <path d="M40 8v8M40 64v8M8 40h8M64 40h8M18 18l6 6M56 56l6 6M18 62l6-6M56 24l6-6" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+              <circle cx="40" cy="40" r="10" fill="currentColor" opacity=".85"/>
+            </svg>
+          </div>
         </button>
 
         <div class="chip-row" id="shop-cats" role="tablist">
@@ -332,7 +351,9 @@
         <h1 class="large-title">Профиль</h1>
 
         <div class="profile-head">
-          <div class="avatar" id="profile-avatar">М</div>
+          <div class="avatar-ring">
+            <div class="avatar avatar-fallback" id="profile-avatar"><span>М</span></div>
+          </div>
           <div class="profile-id">
             <div class="profile-name" id="profile-user">Игрок</div>
             <div class="profile-handle" id="profile-handle">@moji_app</div>
@@ -379,8 +400,8 @@
   <div class="burst hidden" id="burst" aria-hidden="true"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
-  <script src="loop.js?v=5"></script>
-  <script src="mascots.js?v=5"></script>
-  <script src="app.js?v=5"></script>
+  <script src="loop.js?v=6"></script>
+  <script src="mascots.js?v=6"></script>
+  <script src="app.js?v=6"></script>
 </body>
 </html>

@@ -88,31 +88,15 @@ function renderMascot(el, { id, emotion = "idle", hat = "none", className = "" }
   tryNext();
 }
 
-function bindHero(root, preferCrop) {
+/* Splash art is loading-screen only. Never bind it onto home / onboard / name. */
+function bindHero(root) {
   if (!root) return;
   const img = root.querySelector(".hero-scene") || root.querySelector("img.hero-scene");
-  if (!img) return;
-  const sources = [
-    "assets/brand/splash.webp",
-    "assets/brand/splash.png",
-  ];
-  let i = 0;
-  const fail = () => root.classList.remove("has-art");
-  const ok = () => {
-    img.classList.remove("hidden");
-    root.classList.add("has-art");
-  };
-  const next = () => {
-    if (i >= sources.length) {
-      img.classList.add("hidden");
-      fail();
-      return;
-    }
-    img.onload = ok;
-    img.onerror = () => { i += 1; next(); };
-    img.src = sources[i];
-  };
-  next();
+  if (img) {
+    img.classList.add("hidden");
+    img.removeAttribute("src");
+  }
+  root.classList.remove("has-art");
 }
 
 function daysWord(n) {
